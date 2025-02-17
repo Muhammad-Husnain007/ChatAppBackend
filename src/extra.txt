@@ -1,0 +1,240 @@
+import React, { useState, useEffect } from 'react';
+import { View, Modal, TextInput, TouchableOpacity, StyleSheet, Image, Text, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { ICONS_URI } from '../../../constants/Icons';
+
+const Voicee = () => {
+  const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState([]); // Store messages
+  const [isModalVisible, setIsModalVisible] = useState(false); // Control modal visibility
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0); // Duration in seconds
+  const [isBlinking, setIsBlinking] = useState(false); // To control blinking effect
+  const [intervalId, setIntervalId] = useState(null); // Store interval ID
+
+  const startRecording = () => {
+    setIsRecording(true);
+    setIsBlinking(true);
+    
+    // Start timer only if not already recording
+    if (recordingDuration === 0) {
+      setRecordingDuration(0); // Reset duration on the first start
+    }
+
+    // Start timer
+    const id = setInterval(() => {
+      setRecordingDuration(prev => prev + 1); // Increment duration
+    }, 1000);
+    setIntervalId(id); // Store interval ID
+  };
+
+  const pauseRecording = () => {
+    if (isRecording) {
+      setIsRecording(false);
+      setIsBlinking(false); // Stop blinking when paused
+      clearInterval(intervalId); // Stop the interval
+    } else {
+      startRecording(); // Start again if previously paused
+    }
+  };
+
+  const closeModal = () => {
+    setIsModalVisible(false);
+    setIsRecording(false); // Stop recording when closing modal
+    setIsBlinking(false); // Stop blinking
+    clearInterval(intervalId); // Clear the interval
+    setRecordingDuration(0); // Reset duration to 0 when closing the modal
+  };
+
+  useEffect(() => {
+    if (!isRecording) {
+      setIsBlinking(false); // Stop blinking when not recording
+    }
+  }, [isRecording]);
+
+  const formattedDuration = `${Math.floor(recordingDuration / 60)}:${(recordingDuration % 60).toString().padStart(2, '0')}`;
+
+  const handleSend = () => {
+    // Handle sending the text message
+    setMessages([...messages, { type: 'text', content: message }]); // Store text message with type
+    setMessage(''); // Clear the input after sending
+  };
+
+  const sendVoice = () => {
+    setIsModalVisible(true); // Show modal
+  };
+
+  return (
+    <View style={styles.container}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={80} // Adjust this value based on your layout
+      >
+        <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
+          {/* Display all messages */}
+          {messages.length > 0 ? (
+            messages.map((msg, index) => (
+              <View key={index} style={styles.messageContainer}>
+                {msg.type === 'text' && (
+                  <Text style={styles.messageText}>{msg.content}</Text> // Show text content
+                )}
+              </View>
+            ))
+          ) : (
+            <Text style={styles.noMessageText}>No messages yet</Text>
+          )}
+        </ScrollView>
+        
+        {/* Modal for voice message */}
+        <Modal visible={isModalVisible} animationType="slide" transparent={true}>
+          <View style={{ width: '100%', height: 810, justifyContent: 'flex-end' }}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalContainerRow1}>
+                <Text style={{ fontSize: 16 }}>{formattedDuration}</Text>
+                <Text style={{ 
+                  fontSize: 16, 
+                  left: -80, 
+                  opacity: isBlinking ? 1 : 0.5, // Blink effect
+                }}>
+                  {isRecording ? 'Recording....' : 'Paused...'}
+                </Text>
+                <Image source={ICONS_URI.send} />
+              </View>
+
+              <View style={styles.modalContainerRow2}>
+                <TouchableOpacity onPress={closeModal} style={styles.closeModalImage}>
+                  <Image source={ICONS_URI.delete} />
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={pauseRecording} style={styles.resumeImage}>
+                  <Image 
+                    source={isRecording ? ICONS_URI.send : ICONS_URI.pen}
+                    style={styles.image}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Container for input and send button */}
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Type a message..."
+            value={message}
+            onChangeText={setMessage}
+          />
+          {message || isModalVisible ? 
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={handleSend} 
+          >
+            <Image source={ICONS_URI.send} />
+          </TouchableOpacity>
+          :  <TouchableOpacity 
+              style={styles.button} 
+              onLongPress={sendVoice} 
+          >
+            <Image source={ICONS_URI.voice} />
+          </TouchableOpacity>
+          }
+        </View>
+      </KeyboardAvoidingView>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+  },
+  scrollContainer: {
+    flex: 1,
+    padding: 10,
+  },
+  scrollContent: {
+    justifyContent: 'flex-end',
+  },
+  messageContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  messageText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  noMessageText: {
+    fontSize: 16,
+    color: '#777',
+    textAlign: 'center',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#ccc',
+    backgroundColor: '#ffffff',
+  },
+  input: {
+    flex: 1,
+    height: 40,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    marginRight: 10,
+  },
+  button: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 10,
+  },
+  modalContainer: {
+    width: '100%',
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+  },
+  modalContainerRow1: {
+    width: '100%',
+    height: 70,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'gray',
+    paddingLeft: 20,
+    flexDirection: 'row'
+  },
+  modalContainerRow2: {
+    width: '100%',
+    height: 50,
+    alignItems: 'center',
+    backgroundColor: 'aqua',
+    gap: 170,
+    paddingLeft: 20,
+    flexDirection: 'row'
+  },
+  closeModalImage: {
+    // Add styles if needed
+  },
+  resumeImage: {
+    // Add styles if needed
+  },
+  image: {
+    width: 30,
+    height: 30,
+    tintColor: 'black'
+  },
+});
+
+export default Voicee;
