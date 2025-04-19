@@ -66,6 +66,7 @@ const Updates = ({ navigation }: any) => {
   
       const selectedAsset: any = response.assets[0];
       console.log('Selected File URI:', selectedAsset.uri);
+      setTemporaryStatus({ uri: selectedAsset.uri });
   
       const fileType = selectedAsset.type === 'video/mp4' ? 'video' : 'image';
   
@@ -91,7 +92,7 @@ const Updates = ({ navigation }: any) => {
         formData.append('status', {
           uri: selectedAsset.uri,
           name: selectedAsset.fileName || 'status',
-          type: selectedAsset.type || 'image/jpeg',
+          type: selectedAsset.mediaType || 'image/jpeg',
         });
   
         console.log('Form Data:', formData);
@@ -101,7 +102,6 @@ const Updates = ({ navigation }: any) => {
             'Content-Type': 'multipart/form-data',
           },
         });
-        setTemporaryStatus({ uri: selectedAsset.uri });
         console.log('Upload Response:', uploadResponse.data.data);
       } catch (err) {
         console.error('Error uploading status:', err);

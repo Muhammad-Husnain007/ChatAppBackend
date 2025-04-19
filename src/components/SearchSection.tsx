@@ -6,7 +6,7 @@ import { ICONS_URI } from '../constants/Icons'
 
 const SearchSection = () => {
   return (
-    <View style={{width: '100%', height: getResponsiveHeight(10), backgroundColor: COLORS.secondary, justifyContent: 'center',
+    <View style={{width: '100%', height: getResponsiveHeight(10), backgroundColor: COLORS.white, justifyContent: 'center',
         alignItems: 'center'
     }}>
         <Image style={{alignSelf: 'flex-start', zIndex: 1, top: getResponsiveHeight(3.7), 

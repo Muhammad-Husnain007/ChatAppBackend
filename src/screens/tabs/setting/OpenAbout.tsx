@@ -60,7 +60,7 @@ const OpenAbout = ({ navigation }: any) => {
 
       if (result && result[0]) {
         const file: any = result[0];
-
+        console.log('File:', file.uri);
         const formData = new FormData();
         formData.append('profile', {
           uri: file.uri,
@@ -91,7 +91,6 @@ const OpenAbout = ({ navigation }: any) => {
       }
     }
   };
-
 
   const receiveProfileImage = async () => {
     try {

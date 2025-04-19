@@ -45,8 +45,7 @@ const EnterNumber = ({ navigation }: any) => {
       setConfirmation(true);
     } catch (error) {
       console.error('Error:', error);
-    } finally {
-    }
+    } 
   };
 
   const handleOtpChange = (index: number, value: string) => {

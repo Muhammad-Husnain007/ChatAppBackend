@@ -8,7 +8,10 @@ import { ICONS_URI } from '../../../constants/Icons'
 import NavButton from './components/NavButton'
 import ImageText from './components/ImageText'
 
-const OpenChatUser = ({navigation}: any) => {
+const OpenChatUser = ({navigation, route}: any) => {
+  const {contactProfile, firstName, lastName} = route.params;
+  console.log(contactProfile, 'hai')
+
   return (
     <>
      
@@ -24,7 +27,7 @@ const OpenChatUser = ({navigation}: any) => {
         alignItems: 'center', gap: getResponsiveHeight(1)
       }}>
         <View style={{width: getResponsiveWidth(30), justifyContent: 'center', alignItems: 'center', height: getResponsiveWidth(30), borderRadius: 100, backgroundColor:COLORS.lightGray}}>
-       <Image source={ICONS_URI.User} style={{width: '50%', height: '50%'}} />
+       <Image source={contactProfile ? contactProfile : ICONS_URI.User} style={{width: '50%', height: '50%'}} />
         </View>
 
         <Text style={{fontSize: getResponsiveFontSize(22), color: COLORS.black}}>Name User</Text>

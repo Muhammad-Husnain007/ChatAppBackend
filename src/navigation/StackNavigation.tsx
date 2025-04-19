@@ -22,7 +22,7 @@ import ViewProfile from '../screens/tabs/setting/ViewProfile';
 const Stack = createNativeStackNavigator();
 
 const StackNavigation = () => {
-  const [initialRoute, setInitialRoute] = useState<null | string>(null); 
+  const [initialRoute, setInitialRoute] = useState<null | string>(null);
 
   useEffect(() => {
     const checkToken = async () => {
@@ -34,10 +34,10 @@ const StackNavigation = () => {
           const response = await axios.post(`${API.BASE_URI}/user/verifyToken`, {
             token: isToken,
           });
-        console.log("yeh response verify token ka", response.data.valid)
+          console.log("yeh response verify token ka", response.data.valid)
           if (response.data.valid === true) {
             console.log("Token is valid:", response.data);
-            setInitialRoute("Splash"); 
+            setInitialRoute("BottomScreens");
           } else {
             await AsyncStorage.removeItem("AuthToken");
             await AsyncStorage.removeItem("UserId");
@@ -49,14 +49,15 @@ const StackNavigation = () => {
           setInitialRoute("AgreeContinue");
         }
       } catch (error) {
-        console.error("Error verifying token:", error);
+        await AsyncStorage.removeItem("AuthToken");
+        await AsyncStorage.removeItem("UserId");
         setInitialRoute("AgreeContinue");
       }
     };
-  
-    checkToken(); 
+
+    checkToken();
   }, []);
-  
+
 
   console.log('Initial Route:', initialRoute);
 

@@ -9,7 +9,7 @@ const CustomButton = ({
   extraStyle = {},
   textStyle = {},
   showLoader = false,    
-  loaderDuration = 3000, 
+  loaderDuration = 6000, 
 }) => {
   const [loading, setLoading] = useState(false);
 

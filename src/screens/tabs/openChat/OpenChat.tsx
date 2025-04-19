@@ -7,7 +7,7 @@ import { COLORS } from '../../../utils/Colors';
 import { ICONS_URI } from '../../../constants/Icons';
 import ChatNavbar from '../../../components/ChatNavbar';
 import { launchCamera } from 'react-native-image-picker';
-import RNFS from 'react-native-fs';
+import RNFS, { stat } from 'react-native-fs';
 import DocumentPicker from 'react-native-document-picker';
 import axios from 'axios';
 import { API } from '../../../api/Api';
@@ -17,6 +17,7 @@ import Video from 'react-native-video';
 import Pdf from 'react-native-pdf';
 import RNFetchBlob from "react-native-blob-util";
 import FileViewer from "react-native-file-viewer";
+import { Colors } from 'react-native/Libraries/NewAppScreen';
 
 type Message = {
   type: 'text' | 'file' | 'voice' | 'image';
@@ -29,8 +30,6 @@ type Message = {
 const OpenChat = ({ navigation, route }: any) => {
   const [inputText, setInputText] = useState(''); // input text
   const [sendMessageContent, setSendMessageContent] = useState<Message[]>([]); // send message and receive
-  const [userAllMessages, setUserAllMessages] = useState(new Set());
-  const [retriveImagePath, setRetriveImagePath] = useState<string | null>(null); // retrive image path
   const [sendVoice, setSendVoice] = useState<boolean>(false); // send voice
   const [recordingPlay, setRecordingPlay] = useState(false); // open modal checked voice played or not
   const [durationSeconds, setDurationSeconds] = useState(0); // handle recording voice duration in seconds
@@ -41,11 +40,13 @@ const OpenChat = ({ navigation, route }: any) => {
   const [currentVoicePath, setCurrentVoicePath] = useState<string | null>(null); // for store path
   const [voicePath, setVoicePath] = useState<string | []>([]); // for store path
   const scrollViewRef = useRef<ScrollView>(null);
-  const { contactId, firstName, lastName, chatId, } = route.params;
+  const { contactId, firstName, lastName, chatId, contactProfile } = route.params;
   const userId = API.userId
   const socket: any = useRef()
   const audioRecorderPlayer = useRef(new AudioRecorderPlayer()).current;
-
+  // console.log('contact profile:', contactProfile)
+  const [fileTemporaryUri, setFileTemporaryUri] = useState<string | null>(null);
+  const [messageStatus, setMessageStatus] = useState('sent')
 
   const requestStoragePermission = async () => {
     try {
@@ -66,25 +67,20 @@ const OpenChat = ({ navigation, route }: any) => {
     }
   };
 
-  // useEffect(() => {
-  //   requestAudioPermissions();
-  // }, []);
 
   useEffect(() => {
     socket.current = io(`${API.BASE_URI}`);
 
     socket.current.on("connect", () => {
       console.log("Connected to socket server");
-      socket.current.emit("joinChat", { chatId });
+      socket.current.emit("joinChat", { chatId, userId });
+      // setMessageStatus('read')
     });
 
     socket.current.on("receiveMessage", (newMessage: any) => {
       setSendMessageContent((prev) => [...prev, newMessage]);
-      if (newMessage.senderId === userId) {
-        setUserAllMessages((prev) => new Set(prev.add(newMessage._id)));
-      }
+      // setMessageStatus('delivered')
     });
-
     return () => {
       socket.current.disconnect();
       console.log("Disconnected from socket server");
@@ -100,9 +96,6 @@ const OpenChat = ({ navigation, route }: any) => {
         const fetchedMessages = response.data.data.chats;
         setSendMessageContent(fetchedMessages);
         const retriveVoicePath = fetchedMessages.map(x => x.type == 'voice' ? x.mediaUrl : '')
-        const retriveImagePath = fetchedMessages.map(x => x.type == 'image' ? x.mediaUrl : '')
-        // console.log(fetchedMessages)
-        setRetriveImagePath(retriveImagePath)
         setSendMessageContent(fetchedMessages);
         console.log("Fetched messages:", retriveVoicePath);
         setVoicePath(retriveVoicePath)
@@ -121,7 +114,7 @@ const OpenChat = ({ navigation, route }: any) => {
     voice: string  | null = null,
     file: { uri: string; name?: string; type?: string } | null = null,
   ) => {
-    console.log('voice is here:', voice);
+    // console.log('voice is here:', voice);
     const currentTime: string = new Date().toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
@@ -135,9 +128,10 @@ const OpenChat = ({ navigation, route }: any) => {
           type: "text",
           content: text,
           timestamp: currentTime,
-          senderId: userId,
-          receiverId: contactId,
+          sender: userId,
+          receiver: contactId,
           chatId,
+          status: messageStatus
         };
         setSendMessageContent((prev) => [...prev, tempMessage]);
 
@@ -163,13 +157,15 @@ const OpenChat = ({ navigation, route }: any) => {
 
         socket.current.emit("sendMessage", sentMessage);
         setInputText("");
+
       } else if (voice) {
+
         tempMessage = {
           type: "voice",
           content: voice,
           timestamp: currentTime,
-          senderId: userId,
-          receiverId: contactId,
+          sender: userId,
+          receiver: contactId,
           chatId,
         };
         const formData = new FormData();
@@ -192,73 +188,118 @@ const OpenChat = ({ navigation, route }: any) => {
 
         console.log("Send voice:", response.data);
         setSendMessageContent((prev) => [...prev, tempMessage]);
+        
       } else if (imagePath) {
         tempMessage = {
-          type: "image",
-          content: imagePath.uri,
-          timestamp: currentTime,
-          senderId: userId,
-          receiverId: contactId,
-          chatId,
+        type: "image",
+        mediaUrl: imagePath.uri,  // **Local URI**
+        timestamp: currentTime,
+        sender: userId,
+        receiver: contactId,
+        chatId,
+        isUploading: true, // **Uploading indicator**
+      };
+
+      setSendMessageContent((prev) => [...prev, tempMessage]);
+
+      // **Step 2: Backend par Image Upload karo**
+      const formData = new FormData();
+      formData.append("senderId", userId);
+      formData.append("receiverId", contactId);
+      formData.append("type", "image");
+      formData.append("media", {
+        uri: imagePath.uri,
+        name: imagePath.fileName || "upload.jpg",
+        type: imagePath.type || "image/jpeg",
+      });
+
+      const response = await axios.post(
+        `${API.BASE_URI}/message/send/${chatId}`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+
+      const sentMessage = {
+        ...tempMessage,
+        _id: response.data.data._id,
+        createdAt: response.data.data.createdAt,
+        mediaUrl: imagePath.uri,  
+      };
+      setSendMessageContent((prev) =>
+        prev.map((msg) =>
+          msg === tempMessage ? sentMessage : msg
+        )
+      );
+
+      socket.current.emit("sendMessage", sentMessage);
+
+      } 
+      else if (file?.type === 'video/mp4') {
+        console.log('file is here:', file);
+    
+        // Pehle UI per temp message dikhado
+        const tempMessage = {
+            type: "video",
+            mediaUrl: file.uri,
+            timestamp: currentTime,
+            sender: userId,
+            receiver: contactId,
+            chatId,
+            isUploading: true,
+            _id: Math.random().toString(36).substring(7), // Temporary ID
         };
+    
+        setSendMessageContent((prev) => [...prev, tempMessage]);
+    
+        try {
+            const formData = new FormData();
+            formData.append("senderId", userId);
+            formData.append("receiverId", contactId);
+            formData.append("type", "video");
+            formData.append("media", {
+                uri: file.uri,
+                name: file.name || "upload.mp4",
+                type: file.type || "video/mp4",
+            });
+    
+            const response = await axios.post(
+                `${API.BASE_URI}/message/send/${chatId}`,
+                formData,
+                {
+                    headers: { "Content-Type": "multipart/form-data" },
+                }
+            );
+            const sentMessage:any = {
+              ...tempMessage,
+              _id: response.data.data._id,
+              createdAt: response.data.data.createdAt,
+            };
+            // console.log("File Sent:", response.data);
+    
+            // Response aane ke baad message update karo
+            setSendMessageContent((prev) =>
+                prev.map((msg) =>
+                    msg == tempMessage ? sentMessage : msg
+                )
+            );
+           socket.current.emit("sendMessage", sentMessage);
 
-        const formData = new FormData();
-        formData.append("senderId", userId);
-        formData.append("receiverId", contactId);
-        formData.append("type", "image");
-        formData.append("media", {
-          uri: imagePath.uri,
-          name: imagePath.fileName || "upload.jpg",
-          type: imagePath.type || "image/jpeg",
-        });
-
-        const response = await axios.post(
-          `${API.BASE_URI}/message/send/${chatId}`,
-          formData,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-          }
-        );
-
-        console.log("Image Sent:", response.data);
-        setSendMessageContent((prev) => [...prev, response.data.data]);
-      } else if (file?.type === 'video/mp4') {
-        tempMessage = {
-          type: "video",
-          content: file.uri,
-          timestamp: currentTime,
-          senderId: userId,
-          receiverId: contactId,
-          chatId,
-        };
-
-        const formData = new FormData();
-        formData.append("senderId", userId);
-        formData.append("receiverId", contactId);
-        formData.append("type", "video");
-        formData.append("media", {
-          uri: file.uri,
-          name: file.name || "upload.mp4",
-          type: file.type || "video/mp4",
-        });
-
-        const response = await axios.post(
-          `${API.BASE_URI}/message/send/${chatId}`,
-          formData,
-          {
-            headers: { "Content-Type": "multipart/form-data" },
-          }
-        );
-
-        console.log("Image Sent:", response.data);
-        setSendMessageContent((prev) => [...prev, response.data.data]);
-      } else if (file) {
+        } catch (error) {
+            console.error("Error while sending video:", error);
+    
+            // Agar error aaye toh UI se hata do
+            setSendMessageContent((prev) =>
+                prev.filter((msg) => msg._id !== tempMessage._id)
+            );
+        }
+    }
+     else if (file) {
         const isPdf = file.type === "application/pdf" || file.name?.endsWith(".pdf");
 
         if (isPdf) {
           tempMessage = {
             type: "pdf",
-            content: file.uri,
+            mediaUrl: file.uri,
             timestamp: currentTime,
             senderId: userId,
             receiverId: contactId,
@@ -469,6 +510,7 @@ const OpenChat = ({ navigation, route }: any) => {
         console.log('Error: ', result.errorMessage);
       } else {
         const imagePath = result.assets[0];
+        setFileTemporaryUri(imagePath.uri);
         console.log('Captured Image URI:', imagePath); // Debug log
         if (imagePath) {
           handleSendMessage('', imagePath);
@@ -482,7 +524,7 @@ const OpenChat = ({ navigation, route }: any) => {
   const openDocument = async () => {
     try {
       const result = await DocumentPicker.pick({
-        type: [DocumentPicker.types.allFiles],
+        type: [DocumentPicker.types.video],
         allowMultiSelection: false,
       });
 
@@ -493,6 +535,8 @@ const OpenChat = ({ navigation, route }: any) => {
           type: result[0].type,
         };
         console.log('selected file', file)
+        setFileTemporaryUri(file.uri);
+
         if (file) {
           handleSendMessage("", null, null, file);
         }
@@ -519,7 +563,7 @@ const OpenChat = ({ navigation, route }: any) => {
 
   // pdf download
 
-  const downloadAndOpenPdf = async (pdfUrl) => {
+  const downloadAndOpenPdf = async (pdfUrl: string) => {
     try {
       const hasPermission = await requestStoragePermission();
       if (!hasPermission) {
@@ -544,18 +588,20 @@ const OpenChat = ({ navigation, route }: any) => {
     }
   };
   
-
   return (
     <>
-      <ChatNavbar text={`${firstName} ${lastName}`} image={true} />
+      <ChatNavbar text={`${firstName} ${lastName}`} image={true}
+      showProfile={contactProfile} />
+
       <ImageBackground source={IMAGES_URI.chatBg} style={{ width: '100%', height: '100%' }}>
+      
         <ScrollView ref={scrollViewRef} style={{ flex: 1, paddingVertical: getResponsiveHeight(1) }}>
           {sendMessageContent.map((message: any, index) => {
+            console.log('send Message Content is here:', message.status)
             const date = new Date(message.createdAt);
             const hours = date.getHours();
             const minutes = date.getMinutes();
-            // console.log(message.mediaUrl)
-
+            
             let timeFormat;
             if (hours >= 12) {
               timeFormat = 'pm'
@@ -582,19 +628,19 @@ const OpenChat = ({ navigation, route }: any) => {
               <View
                 key={index}
                 style={{
-                  paddingVertical: getResponsiveWidth(2),
+                  paddingVertical: getResponsiveWidth(1),
                   paddingHorizontal: getResponsiveWidth(2),
-                  backgroundColor: COLORS.white,
+                  backgroundColor: message.sender == userId ? COLORS.secondary : COLORS.white,
                   marginVertical: getResponsiveWidth(1),
                   justifyContent: 'center',
                   borderRadius: 10,
                   maxWidth: '70%',
-                  alignSelf: 'flex-end',
-                  right: getResponsiveWidth(2),
+                  alignSelf: message.sender == userId ? 'flex-end' : 'flex-start',
+                  right: message.sender == userId ? getResponsiveWidth(2) : -5,
                 }}
               >
                 {message.type === 'text' && (
-                  <Text style={{ color: COLORS.black, fontSize: getResponsiveFontSize(14) }}>
+                  <Text style={{ color: COLORS.black, fontSize: getResponsiveFontSize(13) }}>
                     {`${message.content}`}
                   </Text>
                 )}
@@ -682,7 +728,7 @@ const OpenChat = ({ navigation, route }: any) => {
                   >
                     {message.mediaUrl ? (
                       <Image
-                        source={{ uri: message.mediaUrl }}
+                        source={{ uri: message.mediaUrl} }
                         style={{
                           width: getResponsiveWidth(40),
                           height: getResponsiveHeight(20),
@@ -691,8 +737,9 @@ const OpenChat = ({ navigation, route }: any) => {
                         }}
                       />
                     ) : (
-                      <Text style={{ color: 'red' }}>Image not available</Text> // Debug message
-                    )}
+                      <Text style={{ color: 'red' }}>Image not available</Text> 
+
+                    )}                      
                   </TouchableOpacity>
                 )}
 
@@ -781,11 +828,22 @@ const OpenChat = ({ navigation, route }: any) => {
                     />
                   </View>
                 )}
+                    {/* Show info about message */}
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end',}}>
+                 
+                 <View style={{flexDirection: 'row', gap: 5}}>
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Text style={{ fontSize: getResponsiveFontSize(10), color: COLORS.primary, marginTop: 5 }}>
                     {message.timestamp || timestamps}
                   </Text>
+                  { message.sender == userId ? (
+                  <Image style={{tintColor: message.status === 'read' ? '#26A1F4' : Colors.silver, 
+                  width: 18, height:18, top: 3.5}} 
+                    source={message.status === 'sent' ? ICONS_URI.singleTick : ICONS_URI.doubleTick}
+                   />
+                  ): ""  }
+                 </View>
+
                   {message.type === 'voice' && (
                     <Text style={{ fontSize: getResponsiveFontSize(10), color: COLORS.primary, marginTop: 5 }}>
                       {playingIndex === index ?
@@ -811,23 +869,23 @@ const OpenChat = ({ navigation, route }: any) => {
             style={{
               width: '100%',
               height: getResponsiveHeight(15),
-              paddingHorizontal: 10,
+              paddingHorizontal: getResponsiveHeight(1),
               position: 'absolute',
-              bottom: 20,
+              bottom: getResponsiveHeight(2),
               flexDirection: 'row',
-              gap: 10,
+              gap: getResponsiveWidth(2),
             }}
           >
             <CustomInput
               inputMainStyle={{
                 borderRadius: 100,
-                height: getResponsiveHeight(6),
+                height: getResponsiveWidth(12),
                 width: '84%',
               }}
               placeholder="Send Message"
               inputStyle={{
-                fontSize: getResponsiveFontSize(15),
-                paddingHorizontal: 20,
+                fontSize: getResponsiveFontSize(13),
+                paddingHorizontal: getResponsiveHeight(2),
               }}
               multiline={true}
               value={inputText}
@@ -858,7 +916,7 @@ const OpenChat = ({ navigation, route }: any) => {
             </View>
 
             <TouchableOpacity
-              onPress={() => inputText && handleSendMessage(inputText)}
+              onPress={() => inputText.trim() && handleSendMessage(inputText.trim())}
               onLongPress={handleStartVoiceRecording}
               style={{
                 width: getResponsiveWidth(12),
@@ -870,6 +928,7 @@ const OpenChat = ({ navigation, route }: any) => {
             >
               <Image source={inputText || sendVoice ? ICONS_URI.send : ICONS_URI.voice} />
             </TouchableOpacity>
+
           </View>
         </View>
 
@@ -890,7 +949,7 @@ const OpenChat = ({ navigation, route }: any) => {
                 style={{
                   flexDirection: 'row',
                   justifyContent: 'space-between',
-                  padding: 20,
+                  padding: getResponsiveHeight(10),
                   height: '50%',
                   width: '100%',
                   borderBottomWidth: 1,

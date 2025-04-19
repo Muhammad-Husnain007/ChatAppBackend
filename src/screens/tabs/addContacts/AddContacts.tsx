@@ -15,22 +15,25 @@ const AddContacts = ({navigation}: any) => {
   const [phoneNumber, setPhoneNumber] = useState('')
   console.log(API.authToken)
   console.log(API.userId)
+
   const handleSave = async() => {
     if(!firstName || !lastName || !phoneNumber){
        Alert.alert('', 'All fields are required')
     }
+    console.log(firstName, lastName, phoneNumber)
    try {
     const addContact = await axios.post(`${API.BASE_URI}/contact/newContact/${API.userId}`, {
       firstName: firstName,
       lastName: lastName,
       phoneNumber: phoneNumber,
     });
-    console.log('add contact successfully: ',addContact)
+    console.log('add contact successfully: ', addContact.data.data)
     navigation.navigate('BottomScreens')
    } catch (error) {
-    console.log('Error:', error)
+      console.log('Error:', error)
    }
   }
+
   return (
    <>
    <ScreensNavbar text='New contact' />

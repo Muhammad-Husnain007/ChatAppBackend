@@ -66,7 +66,7 @@ const HomeNavbar = ({title= '', extraStyle={}}) => {
   return (
     <>
     <View style={{
-      width: '100%', height: getResponsiveHeight(11), backgroundColor: COLORS.lightGray, alignItems: 'center', justifyContent: 'space-between',
+      width: '100%', height: getResponsiveHeight(11), backgroundColor: COLORS.lightWhite, alignItems: 'center', justifyContent: 'space-between',
       gap: 0, paddingHorizontal: getResponsiveWidth(3), flexDirection: 'row'
   }}>
       <Text style={[{ fontSize: getResponsiveFontSize(26), color: COLORS.primary, fontWeight: '600' }, extraStyle]}>{title}</Text>
