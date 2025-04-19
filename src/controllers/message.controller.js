@@ -5,6 +5,7 @@ import { Message } from '../models/message.model.js';
 import { Chat } from '../models/chat.model.js';
 import { User } from '../models/user.model.js';
 import { fileUploadCloudinary } from '../utils/Fileupload.js';
+import { ContactNotSaved } from '../models/contact.model.js';
 
 
 const sendMessage = asyncHandler(async (req, res, next) => {
@@ -12,8 +13,6 @@ const sendMessage = asyncHandler(async (req, res, next) => {
     const { senderId, receiverId, type, content, voiceDuration } = req.body;
     const { chatId } = req.params;
 
-    console.log("Message Request Data:", req.body);
-    
     // 🔹 Fetch Chat & Users
     const [chatCollection, sender, receiver] = await Promise.all([
       Chat.findById(chatId),
@@ -25,59 +24,90 @@ const sendMessage = asyncHandler(async (req, res, next) => {
       return res.status(404).json({ message: "Chat, sender, or receiver not found" });
     }
 
-    // 🔹 Check if sender exists in receiver's contacts
-    const isInSavedContacts = receiver.contacts.contactsSaved.includes(senderId);
-    const isInNotSavedContacts = receiver.contacts.contactsNotSaved.includes(senderId);
+    const receiverSaved = receiver.contacts?.contactsSaved || [];
+    const receiverNotSaved = receiver.contacts?.contactsNotSaved || [];
 
-    if (!isInSavedContacts && !isInNotSavedContacts) {
-      receiver.contacts.contactsNotSaved.push(senderId);
-      await receiver.save();
-    }
+const isSenderInReceiverSaved = receiverSaved.some(
+  (c) => c?.contact?.toString() === senderId.toString()
+);
+const isSenderInReceiverNotSaved = receiverNotSaved.some(
+  (c) => c?.user?.toString() === senderId.toString()
+);
 
-    // 🔹 Create Message Object
+// 🔹 Already saved → Delete from notSaved if exists
+if (isSenderInReceiverSaved) {
+  const existingContact = await ContactNotSaved.findOne({
+    sender: senderId,
+    receiver: receiverId,
+  });
+
+  if (existingContact) {
+    const deleted = await ContactNotSaved.deleteOne({ _id: existingContact._id });
+    console.log("Deleted notSaved because already in saved list:", deleted.deletedCount);
+  }
+}
+// 🔹 Not in saved or notSaved → Create notSaved entry
+else if (!isSenderInReceiverNotSaved) {
+  const contactNotSavedDoc = new ContactNotSaved({
+    sender: senderId,
+    receiver: receiverId,
+    phoneNumber: sender.phoneNumber,
+    displayProfile: sender.displayProfile,
+  });
+  await contactNotSavedDoc.save();
+  console.log("New notSaved contact created");
+}
+    // 🔹 Create Message Data
     const messageData = {
       sender: senderId,
       receiver: receiverId,
       type,
+      chatId,
+      status: "sent",
     };
 
-    // 🔹 Handle File Upload for Media Messages (Image, Video, PDF)
+    // 🔹 Handle Media Messages
     if (["image", "video", "pdf", "voice"].includes(type)) {
       const file = req.files?.media?.[0]?.path;
-      console.log("file", file);
-
       if (!file) {
         return res.status(400).json({ message: `${type} file is required` });
       }
 
       const uploadedFile = await fileUploadCloudinary(file);
-      if (!uploadedFile.url) {
+      if (!uploadedFile?.url) {
         return res.status(500).json({ message: "File upload failed" });
       }
-      console.log('upload file', uploadedFile.url);
+
       messageData.mediaUrl = uploadedFile.url;
 
       if (type === "voice") {
-        if (!voiceDuration) return res.status(400).json({ message: "Voice duration is required" });
+        if (!voiceDuration) {
+          return res.status(400).json({ message: "Voice duration is required" });
+        }
         messageData.voiceDuration = voiceDuration;
       }
-    } 
+    }
+    // 🔹 Handle Text Message
     else if (type === "text") {
-      if (!content) return res.status(400).json({ message: "Text content is required" });
+      if (!content) {
+        return res.status(400).json({ message: "Text content is required" });
+      }
       messageData.content = content;
-    } 
+    }
     else {
       return res.status(400).json({ message: "Invalid message type" });
     }
 
-    // 🔹 Save Message & Update Chat
+    // 🔹 Save Message
     const newMessage = new Message(messageData);
     await newMessage.save();
 
+    // 🔹 Add Message to Chat
+    chatCollection.chats = chatCollection.chats || [];
     chatCollection.chats.push(newMessage._id);
     await chatCollection.save();
 
-    // 🔹 Send Response
+    // 🔹 Success Response
     res.status(201).json({
       success: true,
       data: newMessage,
@@ -85,9 +115,11 @@ const sendMessage = asyncHandler(async (req, res, next) => {
     });
 
   } catch (error) {
-    next(error);
+    console.error("Send Message Error:", error);
+    return res.status(500).json({ message: error.message || "Internal server error" });
   }
 });
+
 
 const receiveMessage = asyncHandler(async (req, res) => {
   try {

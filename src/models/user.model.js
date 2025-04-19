@@ -42,27 +42,12 @@ const userSchema = new Schema({
     }],
   
     },
-    // {
-    //     profile: {
-    //         type: Schema.Types.ObjectId,
-    //         ref: "Contact"
-    //     },
-    //     uploaded: {
-    //         type: Boolean,
-    //         default: false
-    //     }
-    // }
-
-
+    
     displayProfile: [{
         profile: {
             type: Schema.Types.ObjectId,
             ref: "Profile"
         },
-        // uploaded: {
-        //     type: Boolean,
-        //     default: false
-        // }
     }
 ],
 

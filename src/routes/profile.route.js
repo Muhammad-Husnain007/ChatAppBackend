@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { receiveDP, receiveProfile, Uploadprofile } from "../controllers/profile.controller.js";
+import { receiveContactsProfile, receiveDP, receiveProfile, Uploadprofile } from "../controllers/profile.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJwt } from "../middlewares/auth.middleware.js";
 
@@ -16,6 +16,7 @@ router.route('/upload/:userId').post(
 );
 router.route('/receive/:profileId').get(receiveProfile);
 router.route('/receiveByUserId/:userId').get(receiveDP);
+router.route('/receiveContactsProfiles/:userId').get(receiveContactsProfile);
 
 
 export default router;

@@ -102,6 +102,7 @@ const getAllUsers = asyncHandler(async (req, res) => {
     try {
         const users = await User.find(req.user)
             .populate('contacts.contactsSaved.contact')
+            .populate("contacts.contactsNotSaved", "phoneNumber displayProfile")
             .populate('displayProfile.profile');
 
         for (const user of users) {
@@ -159,20 +160,16 @@ const getAllUsers = asyncHandler(async (req, res) => {
 const getByIdUser = asyncHandler(async (req, res) => {
     try {
         const { userId } = req.params;
-        console.log('Fetching user with ID:', userId);
+        // console.log('Fetching user with ID:', userId);
 
         // Step 1: Fetch User and Populate Contacts
         const user = await User.findById(userId).populate({
             path: 'contacts.contactsSaved.contact',
             populate: {
-                path: 'user',
-                model: 'User',
-                populate: {
-                    path: 'displayProfile.profile',
-                    model: 'Profile',
-                },
+                    path: 'displayProfile',
+                    select: 'profile',
             },
-        });
+        }).populate('contacts.contactsNotSaved')
 
         if (!user) {
             console.error(`User with ID ${userId} not found`);

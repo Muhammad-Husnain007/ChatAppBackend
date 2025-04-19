@@ -5,14 +5,10 @@ const profileSchema = new Schema({
         type: String,
         required: false
     },
-    user: [{
+    user: {
         type: Schema.Types.ObjectId,
         ref: "User"
-    }], 
-    // contact: [{
-    //     type: Schema.Types.ObjectId,
-    //     ref: "Contact"
-    // }], 
+    },
 
 }, { timestamps: true });
 

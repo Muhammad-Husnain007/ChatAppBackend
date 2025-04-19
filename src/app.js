@@ -19,6 +19,7 @@ import messageRouter from './routes/message.route.js';
 import profileRouter from './routes/profile.route.js';
 import socketSetup from './socket.connection.js';
 import statusRouter from './routes/status.route.js';
+import contactNotSaved from './routes/contactsNotSaved.route.js';
 
 
 app.use(cors({
@@ -37,6 +38,7 @@ app.use("/chat", chatRouter);
 app.use("/message", messageRouter);
 app.use("/profile", profileRouter);
 app.use("/status", statusRouter);
+app.use("/contact", contactNotSaved);
 
 // Root route
 app.get('/', (req, res) => {

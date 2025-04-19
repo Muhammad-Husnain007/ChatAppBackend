@@ -9,16 +9,11 @@ const contactSchema = new Schema({
         type: String,
         required: true,
     },
-//     displayProfile: [{
-//         profile: {
-//         type: Schema.Types.ObjectId,
-//         ref: "Profile"
-//     },
-//         uploaded: {
-//             type: Boolean,
-//             default: false
-//     },
-//  }],
+    displayProfile: [{
+        // profile: {
+        type: Schema.Types.ObjectId,
+        ref: "Profile"
+}],
     phoneNumber: {
         type: String,
         required: true,
@@ -33,24 +28,20 @@ const contactSchema = new Schema({
 export const Contact = mongoose.model('Contact', contactSchema);
 
 const contactNotSavedSchema = new Schema({
-//     displayProfile: [{
-//         profile: {
-//         type: Schema.Types.ObjectId,
-//         ref: "Profile"
-//     },
-//         uploaded: {
-//             type: Boolean,
-//             default: false
-//     },
-//  }],
+    displayProfile: [{
+        type: Schema.Types.ObjectId,
+        ref: "Profile"
+}],
     phoneNumber: {
         type: String,
         required: true,
     },
-    user: [{
-        type: Schema.Types.ObjectId,
-        ref: "User"
-    }]
+    sender:{
+        type: String
+    },
+    receiver:{
+        type: [String]
+    },
 
 }, { timestamps: true });
 

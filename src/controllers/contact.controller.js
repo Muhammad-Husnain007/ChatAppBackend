@@ -5,7 +5,7 @@ import { Contact } from '../models/contact.model.js';
 import { User } from '../models/user.model.js';
 
 // Adds a new contact to the user's contacts list. 
-// If the contact already exists, throws an error.
+
 const userContact = asyncHandler(async (req, res) => {
     try {
         const { firstName, lastName, phoneNumber } = req.body;
@@ -52,7 +52,7 @@ const userContact = asyncHandler(async (req, res) => {
         await user.save();
 
         // Return updated contacts
-        const updatedUser = await User.findById(userId).populate('contacts.contactsSaved.contact').populate('displayProfile.profile');
+        const updatedUser = await User.findById(userId).populate('contacts.contactsSaved.contact').populate('displayProfile');
         return res.status(200).json(new ApiResponse(200, { contact: newContact, updatedContacts: updatedUser.contacts }, "Contact added successfully"));
     } catch (error) {
         console.error('Error:', error); 
@@ -63,17 +63,21 @@ const userContact = asyncHandler(async (req, res) => {
 // Fetches all contacts, checks if contacts' user field is missing, and updates it if necessary.
 const getAllContacts = asyncHandler(async (req, res) => {
     try {
-        let contacts = await Contact.find(req.users);
+        let contacts = await Contact.find(req.users)
+        
         for (const contact of contacts) {
             if (!contact.user) {
-                const user = await User.findOne({ phoneNumber: contact.phoneNumber });
+                const user = await User.findOne({ phoneNumber: contact.phoneNumber })  
                 if (user) {
                     contact.user = user._id;
                     await contact.save(); 
                 }
             }
         }
-        contacts = await Contact.find(req.users);
+        contacts = await Contact.find(req.users)
+        .populate('displayProfile')
+        .populate('user');
+
         return res.status(200).json(new ApiResponse(200, contacts, "Contacts retrieved and updated successfully"));
     } catch (error) {
         throw new ApiError(500, error?.message || "Something went wrong");
@@ -85,7 +89,12 @@ const getByIdContact = asyncHandler(async (req, res) => {
     try {
         const { contactId } = req.params;
         const contact = await Contact.findById(contactId).populate("user");
-        return res.status(200).json(new ApiResponse(200, contact, "Contact retrieved successfully"));
+        return res.status(200).
+        json(
+        new ApiResponse(
+            200, 
+            contact, 
+            "Contact retrieved successfully"));
     } catch (error) {
         throw new ApiError(500, error?.message || "Something went wrong");
     }
